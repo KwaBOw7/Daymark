@@ -4,7 +4,7 @@ Daymark is a React + TypeScript + Vite PWA. It uses deterministic algorithms onl
 
 ## 1. Run locally
 
-Requirements: Node.js 20+, npm, and a browser with modern Intl/Notifications/Service Worker support.
+Requirements: Node.js 22+, npm, and a browser with modern Intl/Notifications/Service Worker support.
 
 ```sh
 cp .env.example .env.local
@@ -87,3 +87,7 @@ Create Vault secrets `daymark_function_url` (the full `https://PROJECT_REF.supab
 - The allocator supports split study sessions when requested, distributing chunks across separate eligible days. It will explicitly report any incomplete session and advisory alternative slots.
 - Push scheduling is implemented server-side for fixed event records and their recurrence. Tasks need generated session events before their reminders can be enqueued. A configured Cron is required; deploying the function alone does not deliver notifications in the background.
 - Conflict resolution is explicit but currently guided by exporting/reloading; there is no automatic three-way merge editor.
+
+## Native Android/iOS packaging
+
+For the Capacitor wrapper and device-local reminders that can fire without data/Wi-Fi after being scheduled, follow [NATIVE_APP.md](NATIVE_APP.md). The native APK workflow requires GitHub Actions repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.

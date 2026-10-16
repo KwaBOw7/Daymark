@@ -20,7 +20,7 @@
 
 ## Verification from this workspace (2026-10-15)
 
-- `npm run test:core`: 22 passed, 0 failed.
+- `npm run test:core`: 33 passed, 0 failed.
 - Transpile-only syntax check: 16 TS/TSX/config files, 0 syntax diagnostics.
 - Manifest, sample import, and deployment-config assertions passed.
 - `npm ci` did not finish because the npm registry hostname failed DNS lookup (`EAI_AGAIN`). The full TypeScript check, Vite production build, and real-browser tests therefore remain unverified here.

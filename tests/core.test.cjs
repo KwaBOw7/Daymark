@@ -9,6 +9,7 @@ const { findConflicts } = require('../.core-build/src/domain/conflicts.js');
 const { planFlexibleTasks, applyProposal } = require('../.core-build/src/domain/scheduler.js');
 const { zonedDateTimeToDate, dateInZone, timeInZone } = require('../.core-build/src/domain/time.js');
 const { getDueReminders } = require('../.core-build/src/domain/reminders.js');
+const { buildNativeReminderPlan, NATIVE_NOTIFICATION_LIMIT } = require('../.core-build/src/domain/nativeReminders.js');
 const sample = require('../.core-build/src/domain/sampleSchedule.js').SAMPLE_SCHEDULE;
 
 function event(overrides = {}) {
@@ -289,4 +290,91 @@ test('cloud sync surfaces structured Supabase errors instead of misreporting the
   assert.match(app, /snap\.sync==='error'\?'Sync issue'/);
   assert.match(app, /Retry sync/);
   assert.match(app, /toLowerCase\(\)\.includes\('conflict'\)/);
+});
+
+
+test('native reminder planner schedules event and start-time alerts ahead of time without an app timer', () => {
+  const fixed = event({ date: '2026-11-02', start: '10:00', end: '11:00', category: 'class', reminderMinutes: [10, 0] });
+  const plan = buildNativeReminderPlan([fixed], prefs(), new Date('2026-11-02T09:00:00.000Z'));
+  assert.equal(plan.length, 2);
+  assert.equal(plan[0].fireAt, Date.parse('2026-11-02T09:50:00.000Z'));
+  assert.equal(plan[1].fireAt, Date.parse('2026-11-02T10:00:00.000Z'));
+  assert.ok(plan.every(item => item.extra.daymark === true));
+  assert.equal(new Set(plan.map(item => item.id)).size, plan.length);
+});
+
+test('native reminder planner expands recurrence into stable future device notifications', () => {
+  const recurring = event({ date: '2026-11-02', start: '10:00', end: '11:00', category: 'class', reminderMinutes: [10, 0], recurrence: { frequency: 'weekly', weekdays: [1], startDate: '2026-11-02', endDate: '2026-11-30', exceptions: ['2026-11-16'] } });
+  const now = new Date('2026-11-02T09:00:00.000Z');
+  const first = buildNativeReminderPlan([recurring], prefs(), now);
+  const second = buildNativeReminderPlan([recurring], prefs(), now);
+  assert.equal(first.length, 8); // Four Mondays, excluding the exception, two alerts each.
+  assert.deepEqual(first.map(x => [x.id, x.fireAt]), second.map(x => [x.id, x.fireAt]));
+  assert.equal(first.some(x => x.extra.date === '2026-11-16'), false);
+});
+
+test('native reminder planner respects global and per-category notification settings', () => {
+  const fixed = event({ date: '2026-11-02', start: '10:00', end: '11:00', category: 'class', reminderMinutes: [0] });
+  const now = new Date('2026-11-02T09:00:00.000Z');
+  assert.equal(buildNativeReminderPlan([fixed], prefs({ remindersEnabled: false }), now).length, 0);
+  assert.equal(buildNativeReminderPlan([fixed], prefs({ categoryNotifications: { ...DEFAULT_PREFERENCES.categoryNotifications, class: false } }), now).length, 0);
+});
+
+test('native reminder planner ignores past alerts and caps pending notifications below common iOS limit', () => {
+  const now = new Date('2026-11-02T05:00:00.000Z');
+  const futureEvents = Array.from({ length: 40 }, (_, i) => {
+    const total = 6 * 60 + i * 20;
+    const hh = String(Math.floor(total / 60)).padStart(2, '0');
+    const mm = String(total % 60).padStart(2, '0');
+    return event({ id: `bulk-${i}`, title: `Class ${i}`, date: '2026-11-02', start: `${hh}:${mm}`, end: `${String(Math.floor((total + 10) / 60)).padStart(2, '0')}:${String((total + 10) % 60).padStart(2, '0')}`, category: 'class', reminderMinutes: [10, 0] });
+  });
+  const plan = buildNativeReminderPlan(futureEvents, prefs(), now);
+  assert.equal(plan.length, NATIVE_NOTIFICATION_LIMIT);
+  assert.ok(plan.length <= 64);
+  assert.ok(plan.every(item => item.fireAt > now.getTime()));
+  assert.ok(plan.every((item, i) => i === 0 || plan[i - 1].fireAt <= item.fireAt));
+});
+
+test('native packaging includes Android local notification permissions, OAuth deep link and build workflow', () => {
+  const config = fs.readFileSync(path.join(__dirname, '../capacitor.config.ts'), 'utf8');
+  const patch = fs.readFileSync(path.join(__dirname, '../scripts/patch-native-platforms.mjs'), 'utf8');
+  const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/android-apk.yml'), 'utf8');
+  assert.match(config, /com\.daymark\.scheduler/);
+  assert.match(patch, /SCHEDULE_EXACT_ALARM/);
+  assert.match(patch, /POST_NOTIFICATIONS/);
+  assert.match(patch, /auth-callback/);
+  assert.match(workflow, /assembleDebug/);
+  assert.match(workflow, /upload-artifact/);
+});
+
+
+test('native app routes Google OAuth through Capacitor Browser and handles the PKCE callback URL', () => {
+  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8');
+  const supabase = fs.readFileSync(path.join(__dirname, '../src/lib/supabase.ts'), 'utf8');
+  const docs = fs.readFileSync(path.join(__dirname, '../docs/NATIVE_APP.md'), 'utf8');
+  assert.match(app, /com\.daymark\.scheduler:\/\/auth-callback/);
+  assert.match(app, /skipBrowserRedirect:native/);
+  assert.match(app, /exchangeCodeForSession\(code\)/);
+  assert.match(supabase, /flowType:'pkce'/);
+  assert.match(docs, /Supabase.*Redirect URLs/);
+});
+
+test('native notification delivery is scheduled by the OS and refreshed when app state changes', () => {
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/nativeNotifications.ts'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8');
+  assert.match(service, /LocalNotifications\.schedule/);
+  assert.match(service, /LocalNotifications\.requestPermissions/);
+  assert.match(service, /isExactNotification: true/);
+  assert.match(app, /appStateChange/);
+  assert.match(app, /They can fire without data or Wi-Fi/);
+});
+
+
+test('native scheduler reports Android exact-alarm fallback instead of claiming precise timings', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/services/nativeNotifications.ts'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8');
+  assert.match(source, /scheduled\.warning/);
+  assert.match(source, /status: 'synced-inexact'/);
+  assert.match(source, /Alarms & reminders/);
+  assert.match(app, /nativeReminderStatus\.status==='synced-inexact'/);
 });
