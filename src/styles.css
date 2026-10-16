@@ -20,3 +20,10 @@
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 .timezone-warning{background:#fffaf1;border:1px solid #f0dfc7;border-radius:10px;padding:13px}.timezone-warning h4{color:#805b2d}.timezone-warning p{font-size:11px;color:#78674f;line-height:1.65;margin:8px 0}.timezone-warning .import-confirm{margin-top:8px}.split-session-toggle{margin-top:10px}.field-help{display:block;color:#8d988e;font-size:10px;font-weight:400;line-height:1.5;margin-top:4px}
+/* Browser/OS reminder popup controls */
+.browser-notification-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:15px;padding:13px;background:#f7f9f5;border:1px solid #e6ece2;border-radius:10px}
+.browser-notification-row>div{min-width:0;flex:1}
+.browser-notification-row strong{display:block;font-size:10px;color:#4b5e4e}
+.browser-notification-row p{font-size:9px;line-height:1.65;color:#899589;margin:4px 0 0}
+.browser-notification-row .button{flex-shrink:0;white-space:normal;max-width:180px}
+@media(max-width:760px){.browser-notification-row{align-items:stretch;flex-direction:column;gap:10px}.browser-notification-row .button{max-width:none;width:100%}}
