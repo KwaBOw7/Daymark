@@ -226,6 +226,26 @@ test('due reminder engine respects category settings, timing windows, and durabl
   assert.equal(getDueReminders([fixed], disabled, atTenBefore, new Set()).length, 0);
 });
 
+test('reminder catch-up window reports the actual remaining time instead of a stale offset', () => {
+  const fixed = event({ date: '2026-11-02', start: '10:00', end: '11:00', category: 'class', reminderMinutes: [10] });
+  const preferences = prefs({ categoryNotifications: { ...DEFAULT_PREFERENCES.categoryNotifications, class: true } });
+  const lateButRecoverable = getDueReminders([fixed], preferences, new Date('2026-11-02T09:54:30.000Z'));
+  assert.equal(lateButRecoverable.length, 1);
+  assert.match(lateButRecoverable[0].message, /starts in about 6 minutes \(reminder delayed\)/);
+  const tooLate = getDueReminders([fixed], preferences, new Date('2026-11-02T09:55:01.000Z'));
+  assert.equal(tooLate.length, 0);
+});
+
+test('system reminder pop-ups prefer the service worker and settings provide a manual test action', () => {
+  const notifications = fs.readFileSync(path.join(__dirname, '../src/services/notifications.ts'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8');
+  assert.match(notifications, /registration\.showNotification/);
+  assert.match(notifications, /Notification\.requestPermission/);
+  assert.match(app, /visibilitychange/);
+  assert.match(app, /Send test pop-up/);
+  assert.match(app, /getSubscription\(\)/);
+});
+
 test('reminder sweep safely skips a recurring wall-clock time that does not exist during DST spring-forward', () => {
   const recurring = event({
     date: '2026-03-08', start: '02:30', end: '03:00', category: 'study', reminderMinutes: [0],
