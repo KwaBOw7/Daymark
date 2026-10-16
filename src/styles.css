@@ -27,3 +27,29 @@
 .browser-notification-row p{font-size:9px;line-height:1.65;color:#899589;margin:4px 0 0}
 .browser-notification-row .button{flex-shrink:0;white-space:normal;max-width:180px}
 @media(max-width:760px){.browser-notification-row{align-items:stretch;flex-direction:column;gap:10px}.browser-notification-row .button{max-width:none;width:100%}}
+/* Android safe-area spacing */
+html,
+body,
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+.app-shell {
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.sidebar {
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.toast {
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
