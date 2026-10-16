@@ -48,7 +48,7 @@ Use HTTPS (or localhost during development). Open the browser's install menu / �
 
 ### In-app and visible-page notifications
 
-Open Settings → Notifications. Grant browser notification permission to receive OS notifications while the app is open. A browser timer alone cannot wake the app after it is closed; Daymark does not claim that this timer can.
+Open Settings → Notifications and choose **Enable pop-ups**. After permission is granted, the button becomes **Send test pop-up** so you can verify that the device displays an OS notification. While Daymark is open, reminder checks run every 15 seconds and also run when the page becomes visible/focused again; a five-minute catch-up window avoids dropping an alert when the browser temporarily throttles the tab. Fired reminders are deduplicated using per-account browser storage. A browser timer alone cannot wake the app after it is closed; Daymark does not claim that foreground pop-ups can do that.
 
 ### Real closed-app Web Push (requires configuration)
 
@@ -72,7 +72,7 @@ select cron.schedule(
 );
 ```
 
-Create Vault secrets `daymark_function_url` (the full `https://PROJECT_REF.supabase.co/functions/v1/dispatch-reminders` URL) and `daymark_push_cron_secret`. Configure the same random secret as the function secret `PUSH_CRON_SECRET`. Check function logs and the `reminder_queue.last_error` column to diagnose delivery. The queue is produced by database triggers for persisted fixed events and recurring events over the next 60 days. A push subscription must be registered by a signed-in user on each desired browser/device. Due rows are atomically claimed in PostgreSQL so concurrent Cron invocations do not normally send the same queued row together; failures retry up to five times and delivery follows at-least-once semantics (the notification tag helps collapse retries). Browser/OS battery, permission and vendor policies still affect delivery.
+Create Vault secrets `daymark_function_url` (the full `https://PROJECT_REF.supabase.co/functions/v1/dispatch-reminders` URL) and `daymark_push_cron_secret`. Configure the same random secret as the function secret `PUSH_CRON_SECRET`. Check function logs and the `reminder_queue.last_error` column to diagnose delivery. The queue is produced by database triggers for persisted fixed events and recurring events over the next 60 days. A push subscription must be registered by a signed-in user on each desired browser/device. In Settings → Notifications, click **Enable Web Push** on each device, then use **Send test pop-up** to separately verify foreground display. Due rows are atomically claimed in PostgreSQL so concurrent Cron invocations do not normally send the same queued row together; failures retry up to five times and delivery follows at-least-once semantics (the notification tag helps collapse retries). Browser/OS battery, permission and vendor policies still affect delivery.
 
 ## 5. Data and privacy
 
