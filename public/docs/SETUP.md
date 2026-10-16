@@ -28,6 +28,18 @@ Open the Vite address printed in the terminal. If `.env.local` has no real Supab
 
 Cloud operations use the authenticated Supabase session and owner RLS. Per-row compare-and-swap RPCs reject stale updates instead of silently overwriting edits from another device. If offline, the app caches edits and queues sync attempts. When a compare-and-swap conflict occurs, the local copy is preserved; export/review before resolving the conflict rather than assuming a merge was made.
 
+### When the app says it is not syncing
+
+Use the banner's **Try again** / **Retry sync** action after the latest sync-diagnostics patch is installed. Network failures are labelled separately from Supabase API errors; the message includes the failing table or RPC and the PostgREST code/details.
+
+- `PGRST205` / `42P01`: the API cannot find a required table. Confirm the migration was run against the same Supabase project URL configured in `.env.local`; then allow the schema cache a moment to refresh.
+- `42501` / `permission denied`: review grants and RLS policies. Do not disable RLS as a workaround.
+- `401` / JWT-related errors: sign out and sign in again, and verify the browser key belongs to this project.
+- `concurrent_edit`: another client changed that row; export the recovery JSON before reconciling local queued edits.
+- A `Failed to fetch` / network error: only this class indicates the browser could not complete the request; check the request to the Supabase project URL in browser DevTools.
+
+Daymark does not discard pending writes on ordinary sync errors. Export a recovery copy before resolving a genuine version conflict.
+
 ## 3. PWA installation
 
 Use HTTPS (or localhost during development). Open the browser's install menu / “Add to Home Screen”. The manifest, SVG app icon, shell cache and service worker are included. Installation prompts vary by browser/platform. Service workers do not provide offline push on every platform; iOS web push requires a supported iOS version and an installed Home Screen web app.
@@ -36,7 +48,7 @@ Use HTTPS (or localhost during development). Open the browser's install menu / �
 
 ### In-app and visible-page notifications
 
-Open Settings → Notifications. Grant browser notification permission to receive OS notifications while the app is open. A browser timer alone cannot wake the app after it is closed; Daymark does not claim that this timer can.
+Open Settings → Notifications and choose **Enable pop-ups**. After permission is granted, the button becomes **Send test pop-up** so you can verify that the device displays an OS notification. While Daymark is open, reminder checks run every 15 seconds and also run when the page becomes visible/focused again; a five-minute catch-up window avoids dropping an alert when the browser temporarily throttles the tab. Fired reminders are deduplicated using per-account browser storage. A browser timer alone cannot wake the app after it is closed; Daymark does not claim that foreground pop-ups can do that.
 
 ### Real closed-app Web Push (requires configuration)
 
@@ -60,7 +72,7 @@ select cron.schedule(
 );
 ```
 
-Create Vault secrets `daymark_function_url` (the full `https://PROJECT_REF.supabase.co/functions/v1/dispatch-reminders` URL) and `daymark_push_cron_secret`. Configure the same random secret as the function secret `PUSH_CRON_SECRET`. Check function logs and the `reminder_queue.last_error` column to diagnose delivery. The queue is produced by database triggers for persisted fixed events and recurring events over the next 60 days. A push subscription must be registered by a signed-in user on each desired browser/device. Due rows are atomically claimed in PostgreSQL so concurrent Cron invocations do not normally send the same queued row together; failures retry up to five times and delivery follows at-least-once semantics (the notification tag helps collapse retries). Browser/OS battery, permission and vendor policies still affect delivery.
+Create Vault secrets `daymark_function_url` (the full `https://PROJECT_REF.supabase.co/functions/v1/dispatch-reminders` URL) and `daymark_push_cron_secret`. Configure the same random secret as the function secret `PUSH_CRON_SECRET`. Check function logs and the `reminder_queue.last_error` column to diagnose delivery. The queue is produced by database triggers for persisted fixed events and recurring events over the next 60 days. A push subscription must be registered by a signed-in user on each desired browser/device. In Settings → Notifications, click **Enable Web Push** on each device, then use **Send test pop-up** to separately verify foreground display. Due rows are atomically claimed in PostgreSQL so concurrent Cron invocations do not normally send the same queued row together; failures retry up to five times and delivery follows at-least-once semantics (the notification tag helps collapse retries). Browser/OS battery, permission and vendor policies still affect delivery.
 
 ## 5. Data and privacy
 
